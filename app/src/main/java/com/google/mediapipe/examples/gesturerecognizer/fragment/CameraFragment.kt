@@ -18,7 +18,6 @@ package com.google.mediapipe.examples.gesturerecognizer.fragment
 																		 
 import android.graphics.Point
 import android.util.DisplayMetrics							 
-import android.graphics.Point
 import kotlin.math.abs					  
 
 import android.annotation.SuppressLint
