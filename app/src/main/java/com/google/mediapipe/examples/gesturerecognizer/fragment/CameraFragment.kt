@@ -288,6 +288,21 @@ class CameraFragment : Fragment(),
                 // CameraProvider
                 cameraProvider = cameraProviderFuture.get()
 
+             // Iterate over available cameras here - for STB camera issue
+            var foundCamera = false
+            for (lensFacing in listOf(CameraSelector.LENS_FACING_BACK, CameraSelector.LENS_FACING_FRONT)) {
+                val cameraSelectorBuilder = CameraSelector.Builder().requireLensFacing(lensFacing)
+                if (cameraProvider?.hasCamera(cameraSelectorBuilder.build()) == true) {
+                    cameraFacing = lensFacing
+                    foundCamera = true
+                    break
+                }
+            }
+            if (!foundCamera) {
+                Log.e(TAG, "No available camera found on the device.")
+                return@addListener
+            }
+
                 // Build and bind the camera use cases
                 bindCameraUseCases()
             }, ContextCompat.getMainExecutor(requireContext())
