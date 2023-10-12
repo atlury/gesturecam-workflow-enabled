@@ -15,9 +15,11 @@
  */
 package com.google.mediapipe.examples.gesturerecognizer.fragment
 
-//Add necessary imports at the top: to improve screen distortion - atlury
+																		 
 import android.graphics.Point
-import kotlin.math.abs
+import android.util.DisplayMetrics							 
+import android.graphics.Point
+import kotlin.math.abs					  
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
@@ -283,25 +285,25 @@ class CameraFragment : Fragment(),
         fragmentCameraBinding.overlay.clear()
     }
 
-    // Update the setUpCamera and bindCameraUseCases methods to adjust the camera based on the screen's aspect ratio: atlury
+																															
     // Initialize CameraX, and prepare to bind the camera use cases
     private fun setUpCamera() {
         val cameraProviderFuture =
             ProcessCameraProvider.getInstance(requireContext())
         cameraProviderFuture.addListener(
-            Runnable {
-            // CameraProvider
-            cameraProvider = cameraProviderFuture.get()
+            {
+                // CameraProvider
+                cameraProvider = cameraProviderFuture.get()
 
-            // 1. Figure out the aspect ratio (and orientation) of the screen
-            val display = requireActivity().windowManager.defaultDisplay
-            val size = Point()
-            display.getSize(size)
-            val screenAspectRatio = size.x.toFloat() / size.y.toFloat()
+																			 
+																		
+							  
+								 
+																	   
 
-            // 2. Wait for camera to be ready - this is inherently handled here
+																			   
 
-            // 3. Iterate over available cameras
+												
              // Iterate over available cameras here - for STB camera issue
             var foundCamera = false
             for (lensFacing in listOf(CameraSelector.LENS_FACING_BACK, CameraSelector.LENS_FACING_FRONT)) {
@@ -314,82 +316,90 @@ class CameraFragment : Fragment(),
             }
             if (!foundCamera) {
                 Log.e(TAG, "No available camera found on the device.")
-                return@Runnable
+                return@addListener
             }
-            
-                //// 4-8. Build and bind the camera use cases: atlury
+
+																	 
                 // Build and bind the camera use cases
-                bindCameraUseCases(screenAspectRatio)
+                bindCameraUseCases()
             }, ContextCompat.getMainExecutor(requireContext())
         )
     }
 
     // Declare and bind preview, capture and analysis use cases
     @SuppressLint("UnsafeOptInUsageError")
-    private fun bindCameraUseCases() {
+private fun bindCameraUseCases() {
+    // CameraProvider
+    val cameraProvider = cameraProvider ?: throw IllegalStateException("Camera initialization failed.")
+    val cameraSelector = CameraSelector.Builder().requireLensFacing(cameraFacing).build()
 
-        // CameraProvider
-        val cameraProvider = cameraProvider
-            ?: throw IllegalStateException("Camera initialization failed.")
+    // Get the screen's aspect ratio
+    val point = Point()
+    requireActivity().windowManager.defaultDisplay.getRealSize(point)
+    val screenAspectRatio = aspectRatio(point.x, point.y)
 
-        val cameraSelector =
-            CameraSelector.Builder().requireLensFacing(cameraFacing).build()
-   // 9. Calculate difference between camera aspect ratio and screen aspect ratio for padding and positioning.
-    val metrics = DisplayMetrics().also { fragmentCameraBinding.viewFinder.display.getRealMetrics(it) }
-    val screenRatio = metrics.widthPixels / metrics.heightPixels.toFloat()
-    val previewConfig = Preview.Builder().setTargetAspectRatioCustom(Size(metrics.widthPixels, metrics.heightPixels))
-
-    // 10. Adjust the viewfinder's height based on the calculated aspect ratio difference
-    val difference = screenRatio - screenAspectRatio
-    if (difference > 0) {
-        val newHeight = (fragmentCameraBinding.viewFinder.width / screenAspectRatio).toInt()
-        val layoutParams = fragmentCameraBinding.viewFinder.layoutParams
-        layoutParams.height = newHeight
-        fragmentCameraBinding.viewFinder.layoutParams = layoutParams
+    // Adjust the aspect ratio of Preview and ImageAnalysis based on the screen's aspect ratio
+    val targetAspectRatio = when (screenAspectRatio) {
+        AspectRatio.RATIO_4_3 -> AspectRatio.RATIO_4_3
+        AspectRatio.RATIO_16_9 -> AspectRatio.RATIO_16_9
+        else -> AspectRatio.RATIO_4_3  // Default to 4:3 if it doesn't match the two
     }
 
-    // Continue with setting up the Preview and ImageAnalysis use cases as before...
-            
-            
-val targetAspectRatio = when {
-    screenAspectRatio > 1 -> AspectRatio.RATIO_16_9 // Landscape
-    else -> AspectRatio.RATIO_4_3 // Portrait
+    // Configure the preview
+    preview = Preview.Builder()
+        .setTargetAspectRatio(targetAspectRatio)
+        .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
+        .build()
+
+    // ImageAnalysis
+    imageAnalyzer = ImageAnalysis.Builder()
+        .setTargetAspectRatio(targetAspectRatio)
+        .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
+        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+        .build()
+        .also {
+            it.setAnalyzer(backgroundExecutor) { image ->
+                recognizeHand(image)
+            }
+        }
+
+    // Must unbind the use-cases before rebinding them
+    cameraProvider.unbindAll()
+
+    try {
+        camera = cameraProvider.bindToLifecycle(
+            this, cameraSelector, preview, imageAnalyzer
+        )
+        // Attach the viewfinder's surface provider to preview use case
+        preview?.setSurfaceProvider(fragmentCameraBinding.viewFinder.surfaceProvider)
+    } catch (exc: Exception) {
+        Log.e(TAG, "Use case binding failed", exc)
+    }
 }
 
-preview = Preview.Builder()
-    .setTargetAspectRatio(targetAspectRatio)
-    .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
-    .build()
-
-imageAnalyzer = ImageAnalysis.Builder()
-    .setTargetAspectRatio(targetAspectRatio)
-    .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
-    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-    .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-    .build()
-    .also {
-        it.setAnalyzer(backgroundExecutor) { image ->
-            recognizeHand(image)
-        }
+/** Determines integer aspect ratio */
+private fun aspectRatio(width: Int, height: Int): Int {
+    val gcd = gcd(width, height)
+    val aspectRatio = (width / gcd).toDouble() / (height / gcd).toDouble()
+    return when {
+        aspectRatio > 1.78 -> AspectRatio.RATIO_16_9
+        aspectRatio < 1.34 -> AspectRatio.RATIO_4_3
+        else -> AspectRatio.RATIO_4_3 // Default to 4:3 if it's between the two
     }
+}
 
-
-        // Must unbind the use-cases before rebinding them
-        cameraProvider.unbindAll()
-
-        try {
-            // A variable number of use-cases can be passed here -
-            // camera provides access to CameraControl & CameraInfo
-            camera = cameraProvider.bindToLifecycle(
-                this, cameraSelector, preview, imageAnalyzer
-            )
-
-            // Attach the viewfinder's surface provider to preview use case
-            preview?.setSurfaceProvider(fragmentCameraBinding.viewFinder.surfaceProvider)
-        } catch (exc: Exception) {
-            Log.e(TAG, "Use case binding failed", exc)
-        }
+/** Greatest common divisor by Euclidean algorithm */
+private fun gcd(a: Int, b: Int): Int {
+    var a = a
+    var b = b
+    while (b != 0) {
+        val tmp = b
+        b = a % b
+        a = tmp
     }
+    return a
+}
 
     private fun recognizeHand(imageProxy: ImageProxy) {
         gestureRecognizerHelper.recognizeLiveStream(
