@@ -12,7 +12,7 @@ This application should be run on a physical Android device to take advantage of
 ![gesture recognition demo](gesturerec.gif?raw=true "Gesture Recognition Demo")
 
 
-## Build the demo using Android Studio
+## Build using Android Studio
 
 ### Prerequisites
 
