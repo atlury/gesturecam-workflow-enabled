@@ -15,11 +15,6 @@
  */
 package com.google.mediapipe.examples.gesturerecognizer.fragment
 
-																		 
-import android.graphics.Point
-import android.util.DisplayMetrics							 
-import kotlin.math.abs					  
-
 import android.annotation.SuppressLint
 import android.content.res.Configuration
 import android.os.Bundle
@@ -284,7 +279,6 @@ class CameraFragment : Fragment(),
         fragmentCameraBinding.overlay.clear()
     }
 
-																															
     // Initialize CameraX, and prepare to bind the camera use cases
     private fun setUpCamera() {
         val cameraProviderFuture =
@@ -294,15 +288,6 @@ class CameraFragment : Fragment(),
                 // CameraProvider
                 cameraProvider = cameraProviderFuture.get()
 
-																			 
-																		
-							  
-								 
-																	   
-
-																			   
-
-												
              // Iterate over available cameras here - for STB camera issue
             var foundCamera = false
             for (lensFacing in listOf(CameraSelector.LENS_FACING_BACK, CameraSelector.LENS_FACING_FRONT)) {
@@ -318,7 +303,6 @@ class CameraFragment : Fragment(),
                 return@addListener
             }
 
-																	 
                 // Build and bind the camera use cases
                 bindCameraUseCases()
             }, ContextCompat.getMainExecutor(requireContext())
@@ -327,78 +311,50 @@ class CameraFragment : Fragment(),
 
     // Declare and bind preview, capture and analysis use cases
     @SuppressLint("UnsafeOptInUsageError")
-private fun bindCameraUseCases() {
-    // CameraProvider
-    val cameraProvider = cameraProvider ?: throw IllegalStateException("Camera initialization failed.")
-    val cameraSelector = CameraSelector.Builder().requireLensFacing(cameraFacing).build()
+    private fun bindCameraUseCases() {
 
-    // Get the screen's aspect ratio
-    val point = Point()
-    requireActivity().windowManager.defaultDisplay.getRealSize(point)
-    val screenAspectRatio = aspectRatio(point.x, point.y)
+        // CameraProvider
+        val cameraProvider = cameraProvider
+            ?: throw IllegalStateException("Camera initialization failed.")
 
-    // Adjust the aspect ratio of Preview and ImageAnalysis based on the screen's aspect ratio
-    val targetAspectRatio = when (screenAspectRatio) {
-        AspectRatio.RATIO_4_3 -> AspectRatio.RATIO_4_3
-        AspectRatio.RATIO_16_9 -> AspectRatio.RATIO_16_9
-        else -> AspectRatio.RATIO_4_3  // Default to 4:3 if it doesn't match the two
-    }
+        val cameraSelector =
+            CameraSelector.Builder().requireLensFacing(cameraFacing).build()
 
-    // Configure the preview
-    preview = Preview.Builder()
-        .setTargetAspectRatio(targetAspectRatio)
-        .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
-        .build()
+        // Preview. Only using the 4:3 ratio because this is the closest to our models
+        preview = Preview.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3)
+            .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
+            .build()
 
-    // ImageAnalysis
-    imageAnalyzer = ImageAnalysis.Builder()
-        .setTargetAspectRatio(targetAspectRatio)
-        .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
-        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-        .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
-        .build()
-        .also {
-            it.setAnalyzer(backgroundExecutor) { image ->
-                recognizeHand(image)
-            }
+        // ImageAnalysis. Using RGBA 8888 to match how our models work
+        imageAnalyzer =
+            ImageAnalysis.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3)
+                .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
+                .build()
+                // The analyzer can then be assigned to the instance
+                .also {
+                    it.setAnalyzer(backgroundExecutor) { image ->
+                        recognizeHand(image)
+                    }
+                }
+
+        // Must unbind the use-cases before rebinding them
+        cameraProvider.unbindAll()
+
+        try {
+            // A variable number of use-cases can be passed here -
+            // camera provides access to CameraControl & CameraInfo
+            camera = cameraProvider.bindToLifecycle(
+                this, cameraSelector, preview, imageAnalyzer
+            )
+
+            // Attach the viewfinder's surface provider to preview use case
+            preview?.setSurfaceProvider(fragmentCameraBinding.viewFinder.surfaceProvider)
+        } catch (exc: Exception) {
+            Log.e(TAG, "Use case binding failed", exc)
         }
-
-    // Must unbind the use-cases before rebinding them
-    cameraProvider.unbindAll()
-
-    try {
-        camera = cameraProvider.bindToLifecycle(
-            this, cameraSelector, preview, imageAnalyzer
-        )
-        // Attach the viewfinder's surface provider to preview use case
-        preview?.setSurfaceProvider(fragmentCameraBinding.viewFinder.surfaceProvider)
-    } catch (exc: Exception) {
-        Log.e(TAG, "Use case binding failed", exc)
     }
-}
-
-/** Determines integer aspect ratio */
-private fun aspectRatio(width: Int, height: Int): Int {
-    val gcd = gcd(width, height)
-    val aspectRatio = (width / gcd).toDouble() / (height / gcd).toDouble()
-    return when {
-        aspectRatio > 1.78 -> AspectRatio.RATIO_16_9
-        aspectRatio < 1.34 -> AspectRatio.RATIO_4_3
-        else -> AspectRatio.RATIO_4_3 // Default to 4:3 if it's between the two
-    }
-}
-
-/** Greatest common divisor by Euclidean algorithm */
-private fun gcd(a: Int, b: Int): Int {
-    var a = a
-    var b = b
-    while (b != 0) {
-        val tmp = b
-        b = a % b
-        a = tmp
-    }
-    return a
-}
 
     private fun recognizeHand(imageProxy: ImageProxy) {
         gestureRecognizerHelper.recognizeLiveStream(
