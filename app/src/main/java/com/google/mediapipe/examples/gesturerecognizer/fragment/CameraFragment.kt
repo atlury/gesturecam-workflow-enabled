@@ -305,15 +305,15 @@ class CameraFragment : Fragment(),
             CameraSelector.Builder().requireLensFacing(cameraFacing).build()
 
         // Preview. Only using the 4:3 ratio because this is the closest to our models
-        preview = Preview.Builder().setTargetAspectRatio(AspectRatio.RATIO_16_9)
+        preview = Preview.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3)
             .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
             .build()
 
         // ImageAnalysis. Using RGBA 8888 to match how our models work
         imageAnalyzer =
-            ImageAnalysis.Builder().setTargetAspectRatio(AspectRatio.RATIO_16_9)
+            ImageAnalysis.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3)
                 .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_BLOCK_PRODUCER)
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                 .build()
                 // The analyzer can then be assigned to the instance
