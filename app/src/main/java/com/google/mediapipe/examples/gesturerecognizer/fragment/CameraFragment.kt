@@ -65,8 +65,7 @@ class CameraFragment : Fragment(),
     private var imageAnalyzer: ImageAnalysis? = null
     private var camera: Camera? = null
     private var cameraProvider: ProcessCameraProvider? = null
-   private var cameraFacing = CameraSelector.LENS_FACING_FRONT
-   //private var cameraFacing = CameraSelector.LENS_FACING_UNKNOWN
+    private var cameraFacing = CameraSelector.LENS_FACING_BACK
 
     /** Blocking ML operations are performed using this executor */
     private lateinit var backgroundExecutor: ExecutorService
@@ -288,21 +287,6 @@ class CameraFragment : Fragment(),
                 // CameraProvider
                 cameraProvider = cameraProviderFuture.get()
 
-             // Iterate over available cameras here - for STB camera issue
-            var foundCamera = false
-            for (lensFacing in listOf(CameraSelector.LENS_FACING_BACK, CameraSelector.LENS_FACING_FRONT)) {
-                val cameraSelectorBuilder = CameraSelector.Builder().requireLensFacing(lensFacing)
-                if (cameraProvider?.hasCamera(cameraSelectorBuilder.build()) == true) {
-                    cameraFacing = lensFacing
-                    foundCamera = true
-                    break
-                }
-            }
-            if (!foundCamera) {
-                Log.e(TAG, "No available camera found on the device.")
-                return@addListener
-            }
-
                 // Build and bind the camera use cases
                 bindCameraUseCases()
             }, ContextCompat.getMainExecutor(requireContext())
@@ -321,13 +305,13 @@ class CameraFragment : Fragment(),
             CameraSelector.Builder().requireLensFacing(cameraFacing).build()
 
         // Preview. Only using the 4:3 ratio because this is the closest to our models
-        preview = Preview.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3)
+        preview = Preview.Builder().setTargetAspectRatio(AspectRatio.RATIO_16_9)
             .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
             .build()
 
         // ImageAnalysis. Using RGBA 8888 to match how our models work
         imageAnalyzer =
-            ImageAnalysis.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3)
+            ImageAnalysis.Builder().setTargetAspectRatio(AspectRatio.RATIO_16_9)
                 .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
