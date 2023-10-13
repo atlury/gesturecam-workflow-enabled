@@ -305,15 +305,15 @@ class CameraFragment : Fragment(),
             CameraSelector.Builder().requireLensFacing(cameraFacing).build()
 
         // Preview. Only using the 4:3 ratio because this is the closest to our models
-        preview = Preview.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3)
+        preview = Preview.Builder().setTargetAspectRatio(AspectRatio.RATIO_16_9)
             .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
             .build()
 
         // ImageAnalysis. Using RGBA 8888 to match how our models work
         imageAnalyzer =
-            ImageAnalysis.Builder().setTargetAspectRatio(AspectRatio.RATIO_4_3)
+            ImageAnalysis.Builder().setTargetAspectRatio(AspectRatio.RATIO_16_9)
                 .setTargetRotation(fragmentCameraBinding.viewFinder.display.rotation)
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_BLOCK_PRODUCER)
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_RGBA_8888)
                 .build()
                 // The analyzer can then be assigned to the instance
@@ -341,15 +341,22 @@ class CameraFragment : Fragment(),
     }
 
     private fun recognizeHand(imageProxy: ImageProxy) {
-        gestureRecognizerHelper.recognizeLiveStream(
-            imageProxy = imageProxy,
-        )
+        //gestureRecognizerHelper.recognizeLiveStream(
+          //  imageProxy = imageProxy,
+        //)
+            try {
+        gestureRecognizerHelper.recognizeLiveStream(imageProxy = imageProxy)
+                } finally {
+        imageProxy.close()
+                }
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {
         super.onConfigurationChanged(newConfig)
-        imageAnalyzer?.targetRotation =
-            fragmentCameraBinding.viewFinder.display.rotation
+        //imageAnalyzer?.targetRotation =
+          //  fragmentCameraBinding.viewFinder.display.rotation
+        cameraProvider?.unbindAll() // Unbind all use cases
+        bindCameraUseCases()        // Re-bind with the updated rotation
     }
 
     // Update UI after a hand gesture has been recognized. Extracts original
